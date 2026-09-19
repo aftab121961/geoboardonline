@@ -1,17 +1,19 @@
 /**
  * geoboardEngine.js - Interactive Peg Grid Rendering Engine & Magnet Snapping
+ * Supports 5x5, 10x10, 100x100, Isometric, and Circular Grids in Dark & Light Themes
  */
 
 export class GeoboardEngine {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.gridType = options.gridType || 'square5'; // 'square5', 'square10', 'isometric'
+    this.gridType = options.gridType || 'square5'; // 'square5', 'square10', 'square100', 'isometric', 'circular'
+    this.theme = options.theme || 'dark'; // 'dark' | 'light'
     this.showGridLines = options.showGridLines !== undefined ? options.showGridLines : true;
     this.showPegLabels = options.showPegLabels !== undefined ? options.showPegLabels : false;
 
     this.pegs = [];
-    this.padding = 50;
+    this.padding = 45;
     this.snapRadius = 35; // Pixel radius for magnet snap
 
     // Responsive setup
@@ -22,6 +24,10 @@ export class GeoboardEngine {
   setGridType(type) {
     this.gridType = type;
     this.rebuildPegs();
+  }
+
+  setTheme(theme) {
+    this.theme = theme;
   }
 
   setShowGridLines(show) {
@@ -40,7 +46,7 @@ export class GeoboardEngine {
     const dpr = window.devicePixelRatio || 1;
 
     // Use minimum square dimension for perfect aspect ratio
-    const size = Math.min(rect.width, rect.height, 800) - 20;
+    const size = Math.min(rect.width, rect.height, 900) - 20;
     this.width = Math.max(size, 320);
     this.height = Math.max(size, 320);
 
@@ -67,27 +73,16 @@ export class GeoboardEngine {
     const usableW = width - 2 * pad;
     const usableH = height - 2 * pad;
 
-    if (this.gridType === 'square5') {
-      const rows = 5, cols = 5;
+    if (this.gridType === 'square5' || this.gridType === 'square10' || this.gridType === 'square100') {
+      const count = this.gridType === 'square5' ? 5 : (this.gridType === 'square10' ? 10 : 100);
+      const rows = count, cols = count;
       const stepX = usableW / (cols - 1);
       const stepY = usableH / (rows - 1);
 
-      for (let r = 0; r < rows; r++) {
-        for (let c = 0; c < cols; c++) {
-          this.pegs.push({
-            id: `p_${c}_${r}`,
-            gridX: c,
-            gridY: r,
-            x: pad + c * stepX,
-            y: pad + r * stepY,
-            label: `(${c},${r})`
-          });
-        }
-      }
-    } else if (this.gridType === 'square10') {
-      const rows = 10, cols = 10;
-      const stepX = usableW / (cols - 1);
-      const stepY = usableH / (rows - 1);
+      this.stepX = stepX;
+      this.stepY = stepY;
+      this.gridCols = cols;
+      this.gridRows = rows;
 
       for (let r = 0; r < rows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -174,13 +169,29 @@ export class GeoboardEngine {
   }
 
   /**
-   * Find nearest peg to pixel coordinates (x, y) within snap radius
+   * Find nearest peg to pixel coordinates (x, y) with O(1) optimization for 100x100
    */
   getNearestPeg(px, py, maxDist = this.snapRadius) {
+    if (this.gridType === 'square100') {
+      const pad = this.padding;
+      const c = Math.round((px - pad) / this.stepX);
+      const r = Math.round((py - pad) / this.stepY);
+
+      if (c >= 0 && c < 100 && r >= 0 && r < 100) {
+        const idx = r * 100 + c;
+        const peg = this.pegs[idx];
+        if (peg && Math.hypot(peg.x - px, peg.y - py) <= Math.max(maxDist, 18)) {
+          return peg;
+        }
+      }
+      return null;
+    }
+
     let closest = null;
     let minDist = maxDist;
 
-    for (const peg of this.pegs) {
+    for (let i = 0; i < this.pegs.length; i++) {
+      const peg = this.pegs[i];
       const dist = Math.hypot(peg.x - px, peg.y - py);
       if (dist < minDist) {
         minDist = dist;
@@ -197,30 +208,39 @@ export class GeoboardEngine {
     const ctx = this.ctx;
     ctx.clearRect(0, 0, this.width, this.height);
 
-    // 1. Draw subtle board background texture
+    const isLight = this.theme === 'light';
+
+    // 1. Draw board background texture
     const bgGradient = ctx.createRadialGradient(
       this.width / 2, this.height / 2, 50,
       this.width / 2, this.height / 2, this.width * 0.7
     );
-    bgGradient.addColorStop(0, '#1e293b'); // Dark Slate center
-    bgGradient.addColorStop(1, '#0f172a'); // Very dark border
+
+    if (isLight) {
+      bgGradient.addColorStop(0, '#ffffff'); // Pure White center
+      bgGradient.addColorStop(1, '#f1f5f9'); // Light slate border
+    } else {
+      bgGradient.addColorStop(0, '#1e293b'); // Dark Slate center
+      bgGradient.addColorStop(1, '#0f172a'); // Very dark border
+    }
+
     ctx.fillStyle = bgGradient;
     ctx.fillRect(0, 0, this.width, this.height);
 
     // 2. Draw Board Border / Frame
-    ctx.strokeStyle = '#334155';
+    ctx.strokeStyle = isLight ? '#cbd5e1' : '#334155';
     ctx.lineWidth = 4;
     ctx.strokeRect(10, 10, this.width - 20, this.height - 20);
 
     // 3. Draw Grid Lines (if enabled)
     if (this.showGridLines) {
       ctx.beginPath();
-      ctx.strokeStyle = 'rgba(148, 163, 184, 0.18)'; // Slate faint line
-      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = isLight ? 'rgba(100, 116, 139, 0.25)' : 'rgba(148, 163, 184, 0.18)';
+      ctx.lineWidth = this.gridType === 'square100' ? 0.75 : 1.5;
 
-      if (this.gridType === 'square5' || this.gridType === 'square10') {
-        const rows = this.gridType === 'square5' ? 5 : 10;
-        const cols = rows;
+      if (this.gridType === 'square5' || this.gridType === 'square10' || this.gridType === 'square100') {
+        const count = this.gridCols;
+        const rows = count, cols = count;
 
         // Vertical lines
         for (let c = 0; c < cols; c++) {
@@ -241,7 +261,6 @@ export class GeoboardEngine {
           }
         }
       } else if (this.gridType === 'isometric') {
-        // Connect isometric triangular lattice
         for (let i = 0; i < this.pegs.length; i++) {
           const p1 = this.pegs[i];
           for (let j = i + 1; j < this.pegs.length; j++) {
@@ -255,19 +274,16 @@ export class GeoboardEngine {
           }
         }
       } else if (this.gridType === 'circular') {
-        // Draw Concentric Rings & Radial Spokes
         const centerX = this.width / 2;
         const centerY = this.height / 2;
         const maxRadius = Math.min(this.width - 2 * this.padding, this.height - 2 * this.padding) / 2;
         const ringStep = maxRadius / 4;
 
-        // Concentric Rings
         for (let r = 1; r <= 4; r++) {
           ctx.moveTo(centerX + r * ringStep, centerY);
           ctx.arc(centerX, centerY, r * ringStep, 0, Math.PI * 2);
         }
 
-        // 12 Radial Spokes (every 30 degrees)
         for (let deg = 0; deg < 180; deg += 30) {
           const rad = (deg * Math.PI) / 180;
           const x1 = centerX + Math.cos(rad) * maxRadius;
@@ -282,17 +298,29 @@ export class GeoboardEngine {
     }
 
     // 4. Render All Pegs
-    for (const peg of this.pegs) {
-      this.drawPeg(peg, activePeg === peg, hoveredPeg === peg);
+    const isSquare100 = (this.gridType === 'square100');
+    for (let i = 0; i < this.pegs.length; i++) {
+      const peg = this.pegs[i];
+      this.drawPeg(peg, activePeg === peg, hoveredPeg === peg, isSquare100, isLight);
     }
   }
 
   /**
-   * Draw individual metallic 3D peg button
+   * Draw individual metallic peg button (optimized for 100x100)
    */
-  drawPeg(peg, isActive = false, isHovered = false) {
+  drawPeg(peg, isActive = false, isHovered = false, isSquare100 = false, isLight = false) {
     const ctx = this.ctx;
-    const baseRadius = this.gridType === 'square10' ? 6 : 8;
+
+    if (isSquare100 && !isActive && !isHovered) {
+      // High-performance micro peg rendering for 100x100
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, 1.8, 0, Math.PI * 2);
+      ctx.fillStyle = isLight ? '#475569' : '#94a3b8';
+      ctx.fill();
+      return;
+    }
+
+    const baseRadius = isSquare100 ? 3.5 : (this.gridType === 'square10' ? 6 : 8);
     const r = isHovered ? baseRadius + 3 : (isActive ? baseRadius + 4 : baseRadius);
 
     // Outer glow for hover/active
@@ -305,11 +333,11 @@ export class GeoboardEngine {
 
     // Drop shadow
     ctx.beginPath();
-    ctx.arc(peg.x + 1.5, peg.y + 2, r, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.arc(peg.x + 1, peg.y + 1.5, r, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     ctx.fill();
 
-    // Metallic Gradient Body
+    // Metallic / Color Body
     const pegGradient = ctx.createRadialGradient(
       peg.x - r * 0.3, peg.y - r * 0.3, r * 0.1,
       peg.x, peg.y, r
@@ -322,6 +350,10 @@ export class GeoboardEngine {
       pegGradient.addColorStop(0, '#fbcfe8');
       pegGradient.addColorStop(0.5, '#ec4899');
       pegGradient.addColorStop(1, '#be185d');
+    } else if (isLight) {
+      pegGradient.addColorStop(0, '#ffffff');
+      pegGradient.addColorStop(0.6, '#cbd5e1');
+      pegGradient.addColorStop(1, '#64748b');
     } else {
       pegGradient.addColorStop(0, '#f1f5f9');
       pegGradient.addColorStop(0.6, '#94a3b8');
@@ -332,19 +364,21 @@ export class GeoboardEngine {
     ctx.arc(peg.x, peg.y, r, 0, Math.PI * 2);
     ctx.fillStyle = pegGradient;
     ctx.fill();
-    ctx.strokeStyle = isActive ? '#60a5fa' : '#cbd5e1';
+    ctx.strokeStyle = isActive ? '#60a5fa' : (isLight ? '#475569' : '#cbd5e1');
     ctx.lineWidth = 1;
     ctx.stroke();
 
     // Pin center dot
-    ctx.beginPath();
-    ctx.arc(peg.x, peg.y, Math.max(2, r * 0.3), 0, Math.PI * 2);
-    ctx.fillStyle = '#0f172a';
-    ctx.fill();
+    if (r >= 4) {
+      ctx.beginPath();
+      ctx.arc(peg.x, peg.y, Math.max(1.5, r * 0.25), 0, Math.PI * 2);
+      ctx.fillStyle = isLight ? '#0f172a' : '#0f172a';
+      ctx.fill();
+    }
 
     // Peg Label (if enabled)
-    if (this.showPegLabels && this.gridType !== 'square10') {
-      ctx.fillStyle = '#94a3b8';
+    if (this.showPegLabels && !isSquare100 && this.gridType !== 'square10') {
+      ctx.fillStyle = isLight ? '#475569' : '#94a3b8';
       ctx.font = '10px Inter, sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(peg.label, peg.x, peg.y + r + 12);

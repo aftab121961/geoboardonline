@@ -5,13 +5,32 @@
 :root {
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-heading: 'Outfit', 'Inter', sans-serif;
+  
+  /* Dark Theme Tokens */
+  --bg-main: #090d16;
+  --text-main: #f8fafc;
+  --glass-bg: rgba(15, 23, 42, 0.8);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --canvas-bg-radial: radial-gradient(circle at center, #1e293b 0%, #0b1120 100%);
+  --tooltip-bg: #1e293b;
+}
+
+html.light {
+  /* Light / White Theme Tokens */
+  --bg-main: #f1f5f9;
+  --text-main: #0f172a;
+  --glass-bg: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(0, 0, 0, 0.1);
+  --canvas-bg-radial: radial-gradient(circle at center, #ffffff 0%, #e2e8f0 100%);
+  --tooltip-bg: #0f172a;
 }
 
 body {
   font-family: var(--font-sans);
-  background-color: #090d16;
-  color: #f8fafc;
+  background-color: var(--bg-main);
+  color: var(--text-main);
   overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 h1, h2, h3, h4, .font-heading {
@@ -20,17 +39,27 @@ h1, h2, h3, h4, .font-heading {
 
 /* Glassmorphism Panel Tokens */
 .glass-panel {
-  background: rgba(15, 23, 42, 0.75);
+  background: var(--glass-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.12);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+html.light .glass-panel {
+  box-shadow: 0 8px 24px 0 rgba(148, 163, 184, 0.25);
 }
 
 .glass-card {
   background: rgba(30, 41, 59, 0.6);
   backdrop-filter: blur(8px);
   border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+html.light .glass-card {
+  background: rgba(241, 245, 249, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 /* Custom Scrollbars */
@@ -49,12 +78,51 @@ h1, h2, h3, h4, .font-heading {
   background: #475569;
 }
 
-/* Active Tool Button States */
-.active-mode {
+/* Active Tool Icon Button States */
+.icon-tool-btn {
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.icon-tool-btn:hover {
+  transform: translateY(-2px);
+}
+
+.icon-tool-btn.active-mode {
   background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%) !important;
   color: #ffffff !important;
   border-color: #38bdf8 !important;
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.4) !important;
+}
+
+/* Tooltip on Icon Buttons */
+[data-tooltip] {
+  position: relative;
+}
+
+[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: 115%;
+  top: 50%;
+  transform: translateY(-50%) scale(0.95);
+  background: var(--tooltip-bg);
+  color: #ffffff;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.15s ease-in-out;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  z-index: 50;
+}
+
+[data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
 }
 
 /* Canvas Container & Responsiveness */
@@ -63,11 +131,12 @@ h1, h2, h3, h4, .font-heading {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: radial-gradient(circle at center, #1e293b 0%, #0b1120 100%);
+  background: var(--canvas-bg-radial);
   border-radius: 1.5rem;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.5), 0 20px 50px rgba(0, 0, 0, 0.6);
+  border: 1px solid var(--glass-border);
+  box-shadow: inset 0 0 40px rgba(0, 0, 0, 0.15), 0 20px 50px rgba(0, 0, 0, 0.2);
   padding: 1rem;
+  transition: background 0.3s ease;
 }
 
 /* Pulse animation for rubber band creation tip */
@@ -79,3 +148,4 @@ h1, h2, h3, h4, .font-heading {
 .pulse-glow {
   animation: pulseGlow 2.5s infinite ease-in-out;
 }
+
