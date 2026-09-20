@@ -1,16 +1,15 @@
 /**
  * geoboardEngine.js - Interactive Peg Grid Rendering Engine & Magnet Snapping
- * Supports 5x5, 10x10, 100x100, Isometric, and Circular Grids in Dark & Light Themes
+ * Supports 5x5, 10x10, 15x8, Isometric, and Circular Grids in Dark & Light Themes
  */
 
 export class GeoboardEngine {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.gridType = options.gridType || 'square5'; // 'square5', 'square10', 'square100', 'isometric', 'circular'
+    this.gridType = options.gridType || 'square5'; // 'square5', 'square10', 'grid15x8', 'isometric', 'circular'
     this.theme = options.theme || 'dark'; // 'dark' | 'light'
     this.showGridLines = options.showGridLines !== undefined ? options.showGridLines : true;
-    this.showPegLabels = options.showPegLabels !== undefined ? options.showPegLabels : false;
 
     this.pegs = [];
     this.padding = 45;
@@ -34,10 +33,6 @@ export class GeoboardEngine {
     this.showGridLines = show;
   }
 
-  setShowPegLabels(show) {
-    this.showPegLabels = show;
-  }
-
   resizeCanvas() {
     const parent = this.canvas.parentElement;
     if (!parent) return;
@@ -45,7 +40,7 @@ export class GeoboardEngine {
     const rect = parent.getBoundingClientRect();
     const dpr = window.devicePixelRatio || 1;
 
-    // Use minimum square dimension for perfect aspect ratio
+    // Canvas size
     const size = Math.min(rect.width, rect.height, 900) - 20;
     this.width = Math.max(size, 320);
     this.height = Math.max(size, 320);
@@ -73,9 +68,14 @@ export class GeoboardEngine {
     const usableW = width - 2 * pad;
     const usableH = height - 2 * pad;
 
-    if (this.gridType === 'square5' || this.gridType === 'square10' || this.gridType === 'square100') {
-      const count = this.gridType === 'square5' ? 5 : (this.gridType === 'square10' ? 10 : 100);
-      const rows = count, cols = count;
+    if (this.gridType === 'square5' || this.gridType === 'square10' || this.gridType === 'grid15x8') {
+      let cols = 5, rows = 5;
+      if (this.gridType === 'square10') {
+        cols = 10; rows = 10;
+      } else if (this.gridType === 'grid15x8') {
+        cols = 15; rows = 8;
+      }
+
       const stepX = usableW / (cols - 1);
       const stepY = usableH / (rows - 1);
 
@@ -141,7 +141,7 @@ export class GeoboardEngine {
         label: '(0,0)'
       });
 
-      // Concentric Rings: Ring 1 (6 pegs), Ring 2 (12 pegs), Ring 3 (18 pegs), Ring 4 (24 pegs)
+      // Concentric Rings
       const pegsPerRing = [6, 12, 18, 24];
       for (let r = 1; r <= numRings; r++) {
         const count = pegsPerRing[r - 1];
@@ -169,24 +169,9 @@ export class GeoboardEngine {
   }
 
   /**
-   * Find nearest peg to pixel coordinates (x, y) with O(1) optimization for 100x100
+   * Find nearest peg to pixel coordinates (x, y)
    */
   getNearestPeg(px, py, maxDist = this.snapRadius) {
-    if (this.gridType === 'square100') {
-      const pad = this.padding;
-      const c = Math.round((px - pad) / this.stepX);
-      const r = Math.round((py - pad) / this.stepY);
-
-      if (c >= 0 && c < 100 && r >= 0 && r < 100) {
-        const idx = r * 100 + c;
-        const peg = this.pegs[idx];
-        if (peg && Math.hypot(peg.x - px, peg.y - py) <= Math.max(maxDist, 18)) {
-          return peg;
-        }
-      }
-      return null;
-    }
-
     let closest = null;
     let minDist = maxDist;
 
@@ -217,11 +202,11 @@ export class GeoboardEngine {
     );
 
     if (isLight) {
-      bgGradient.addColorStop(0, '#ffffff'); // Pure White center
-      bgGradient.addColorStop(1, '#f1f5f9'); // Light slate border
+      bgGradient.addColorStop(0, '#ffffff');
+      bgGradient.addColorStop(1, '#f1f5f9');
     } else {
-      bgGradient.addColorStop(0, '#1e293b'); // Dark Slate center
-      bgGradient.addColorStop(1, '#0f172a'); // Very dark border
+      bgGradient.addColorStop(0, '#1e293b');
+      bgGradient.addColorStop(1, '#0f172a');
     }
 
     ctx.fillStyle = bgGradient;
@@ -236,11 +221,11 @@ export class GeoboardEngine {
     if (this.showGridLines) {
       ctx.beginPath();
       ctx.strokeStyle = isLight ? 'rgba(100, 116, 139, 0.25)' : 'rgba(148, 163, 184, 0.18)';
-      ctx.lineWidth = this.gridType === 'square100' ? 0.75 : 1.5;
+      ctx.lineWidth = 1.5;
 
-      if (this.gridType === 'square5' || this.gridType === 'square10' || this.gridType === 'square100') {
-        const count = this.gridCols;
-        const rows = count, cols = count;
+      if (this.gridType === 'square5' || this.gridType === 'square10' || this.gridType === 'grid15x8') {
+        const cols = this.gridCols;
+        const rows = this.gridRows;
 
         // Vertical lines
         for (let c = 0; c < cols; c++) {
@@ -298,29 +283,18 @@ export class GeoboardEngine {
     }
 
     // 4. Render All Pegs
-    const isSquare100 = (this.gridType === 'square100');
     for (let i = 0; i < this.pegs.length; i++) {
       const peg = this.pegs[i];
-      this.drawPeg(peg, activePeg === peg, hoveredPeg === peg, isSquare100, isLight);
+      this.drawPeg(peg, activePeg === peg, hoveredPeg === peg, isLight);
     }
   }
 
   /**
-   * Draw individual metallic peg button (optimized for 100x100)
+   * Draw individual metallic peg button
    */
-  drawPeg(peg, isActive = false, isHovered = false, isSquare100 = false, isLight = false) {
+  drawPeg(peg, isActive = false, isHovered = false, isLight = false) {
     const ctx = this.ctx;
-
-    if (isSquare100 && !isActive && !isHovered) {
-      // High-performance micro peg rendering for 100x100
-      ctx.beginPath();
-      ctx.arc(peg.x, peg.y, 1.8, 0, Math.PI * 2);
-      ctx.fillStyle = isLight ? '#475569' : '#94a3b8';
-      ctx.fill();
-      return;
-    }
-
-    const baseRadius = isSquare100 ? 3.5 : (this.gridType === 'square10' ? 6 : 8);
+    const baseRadius = this.gridType === 'grid15x8' ? 6 : (this.gridType === 'square10' ? 6 : 8);
     const r = isHovered ? baseRadius + 3 : (isActive ? baseRadius + 4 : baseRadius);
 
     // Outer glow for hover/active
@@ -372,16 +346,8 @@ export class GeoboardEngine {
     if (r >= 4) {
       ctx.beginPath();
       ctx.arc(peg.x, peg.y, Math.max(1.5, r * 0.25), 0, Math.PI * 2);
-      ctx.fillStyle = isLight ? '#0f172a' : '#0f172a';
+      ctx.fillStyle = '#0f172a';
       ctx.fill();
-    }
-
-    // Peg Label (if enabled)
-    if (this.showPegLabels && !isSquare100 && this.gridType !== 'square10') {
-      ctx.fillStyle = isLight ? '#475569' : '#94a3b8';
-      ctx.font = '10px Inter, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(peg.label, peg.x, peg.y + r + 12);
     }
   }
 }

@@ -74,6 +74,14 @@ export class RulerTool {
     this.endPeg = null;
   }
 
+  undo() {
+    if (this.savedMeasurements.length > 0) {
+      this.savedMeasurements.pop();
+      return true;
+    }
+    return false;
+  }
+
   // --- VIRTUAL RULER INTERACTION ---
   handleMouseDown(px, py) {
     if (!this.showVirtualRuler) return false;

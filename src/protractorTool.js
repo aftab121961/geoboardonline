@@ -75,6 +75,14 @@ export class ProtractorTool {
     this.selectedAnglePegs = [];
   }
 
+  undo() {
+    if (this.measuredAngles.length > 0) {
+      this.measuredAngles.pop();
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Handle mouse down / drag for the virtual protractor overlay
    */

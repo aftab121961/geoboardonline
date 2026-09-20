@@ -1,13 +1,14 @@
 /**
- * app.js - Main Geoboard Application Controller
- * High-performance UI controller with automatic rubber band line creation,
- * white theme toggle, compact icon tools, 100x100 grid support, and zero keyboard dependencies.
+ * app.js - Main Controller for Virtual Geoboard
+ * Supports 15x8 grid, freehand Pen tool, floating bottom color palette,
+ * leftmost toolbox, white theme toggle, and unified undo history.
  */
 
 import { GeoboardEngine } from './geoboardEngine.js';
 import { BandManager, BAND_COLORS } from './bandManager.js';
 import { ProtractorTool } from './protractorTool.js';
 import { RulerTool } from './rulerTool.js';
+import { PenTool } from './penTool.js';
 import { PRESETS } from './presets.js';
 
 class App {
@@ -17,16 +18,21 @@ class App {
     this.bandManager = new BandManager(this.engine);
     this.protractorTool = new ProtractorTool(this.engine);
     this.rulerTool = new RulerTool(this.engine);
+    this.penTool = new PenTool(this.engine);
 
-    this.activeMode = 'draw'; // 'draw', 'circle', 'select', 'protractor', 'ruler'
+    this.activeMode = 'draw'; // 'draw', 'circle', 'pen', 'protractor', 'ruler'
     this.hoveredPeg = null;
     this.dragStartPeg = null;
+    this.isDrawingPen = false;
+
+    // Unified Action History Stack for Undo
+    this.actionHistory = [];
 
     this.initUI();
     this.bindEvents();
     this.startRenderLoop();
 
-    // Load initial unit square preset to welcome user
+    // Load initial unit square preset
     this.loadPreset('unit_square');
   }
 
@@ -73,17 +79,17 @@ class App {
     // Mode Icon Buttons
     const btnDraw = document.getElementById('modeDraw');
     const btnCircle = document.getElementById('modeCircle');
-    const btnSelect = document.getElementById('modeSelect');
+    const btnPen = document.getElementById('modePen');
     const btnProtractor = document.getElementById('modeProtractor');
     const btnRuler = document.getElementById('modeRuler');
     const btnVirtualProtractor = document.getElementById('btnVirtualProtractor');
     const btnVirtualRuler = document.getElementById('btnVirtualRuler');
 
     const updateModeUI = () => {
-      [btnDraw, btnCircle, btnSelect, btnProtractor, btnRuler].forEach(btn => btn?.classList.remove('active-mode'));
+      [btnDraw, btnCircle, btnPen, btnProtractor, btnRuler].forEach(btn => btn?.classList.remove('active-mode'));
       if (this.activeMode === 'draw') btnDraw?.classList.add('active-mode');
       if (this.activeMode === 'circle') btnCircle?.classList.add('active-mode');
-      if (this.activeMode === 'select') btnSelect?.classList.add('active-mode');
+      if (this.activeMode === 'pen') btnPen?.classList.add('active-mode');
       if (this.activeMode === 'protractor') btnProtractor?.classList.add('active-mode');
       if (this.activeMode === 'ruler') btnRuler?.classList.add('active-mode');
     };
@@ -93,6 +99,7 @@ class App {
       this.bandManager.cancelActiveLoop();
       if (this.protractorTool.active) this.protractorTool.toggleActive();
       if (this.rulerTool.active) this.rulerTool.toggleActive();
+      if (this.penTool.active) this.penTool.toggleActive();
       updateModeUI();
     });
 
@@ -101,14 +108,16 @@ class App {
       this.bandManager.cancelActiveLoop();
       if (this.protractorTool.active) this.protractorTool.toggleActive();
       if (this.rulerTool.active) this.rulerTool.toggleActive();
+      if (this.penTool.active) this.penTool.toggleActive();
       updateModeUI();
     });
 
-    btnSelect?.addEventListener('click', () => {
-      this.activeMode = 'select';
+    btnPen?.addEventListener('click', () => {
+      this.activeMode = 'pen';
       this.bandManager.cancelActiveLoop();
       if (this.protractorTool.active) this.protractorTool.toggleActive();
       if (this.rulerTool.active) this.rulerTool.toggleActive();
+      if (!this.penTool.active) this.penTool.toggleActive();
       updateModeUI();
     });
 
@@ -117,6 +126,7 @@ class App {
       this.bandManager.cancelActiveLoop();
       if (!this.protractorTool.active) this.protractorTool.toggleActive();
       if (this.rulerTool.active) this.rulerTool.toggleActive();
+      if (this.penTool.active) this.penTool.toggleActive();
       updateModeUI();
     });
 
@@ -125,6 +135,7 @@ class App {
       this.bandManager.cancelActiveLoop();
       if (this.protractorTool.active) this.protractorTool.toggleActive();
       if (!this.rulerTool.active) this.rulerTool.toggleActive();
+      if (this.penTool.active) this.penTool.toggleActive();
       updateModeUI();
     });
 
@@ -140,7 +151,7 @@ class App {
       btnVirtualRuler.classList.toggle('text-white', active);
     });
 
-    // Light / White Theme Toggle
+    // White / Dark Theme Toggle
     const btnThemeToggle = document.getElementById('btnThemeToggle');
     const themeToggleText = document.getElementById('themeToggleText');
     btnThemeToggle?.addEventListener('click', () => {
@@ -159,7 +170,7 @@ class App {
       }
     });
 
-    // Grid Switcher (includes 100x100)
+    // Grid Switcher (includes 15x8)
     const gridTypeSelect = document.getElementById('gridTypeSelect');
     gridTypeSelect?.addEventListener('change', (e) => {
       const newGrid = e.target.value;
@@ -167,6 +178,8 @@ class App {
       this.bandManager.clearBoard();
       this.protractorTool.clearMeasuredAngles();
       this.rulerTool.clearMeasurements();
+      this.penTool.clear();
+      this.actionHistory = [];
     });
 
     // Option Toggles
@@ -175,14 +188,9 @@ class App {
       this.engine.setShowGridLines(e.target.checked);
     });
 
-    const togglePegLabels = document.getElementById('togglePegLabels');
-    togglePegLabels?.addEventListener('change', (e) => {
-      this.engine.setShowPegLabels(e.target.checked);
-    });
-
-    // Action Buttons
+    // Action Buttons & UNIFIED UNDO SYSTEM
     document.getElementById('btnUndo')?.addEventListener('click', () => {
-      this.bandManager.undo();
+      this.executeUndo();
     });
 
     document.getElementById('btnRedo')?.addEventListener('click', () => {
@@ -192,14 +200,13 @@ class App {
     document.getElementById('btnClear')?.addEventListener('click', () => {
       this.bandManager.clearBoard();
       this.protractorTool.clearMeasuredAngles();
+      this.rulerTool.clearMeasurements();
+      this.penTool.clear();
+      this.actionHistory = [];
     });
 
     document.getElementById('btnDeleteShape')?.addEventListener('click', () => {
       this.bandManager.deleteSelectedShape();
-    });
-
-    document.getElementById('btnFinishLine')?.addEventListener('click', () => {
-      this.bandManager.finishActiveLine();
     });
 
     document.getElementById('btnExport')?.addEventListener('click', () => this.exportImage());
@@ -208,13 +215,28 @@ class App {
     this.canvas.addEventListener('pointerdown', (e) => this.onPointerDown(e));
     this.canvas.addEventListener('pointermove', (e) => this.onPointerMove(e));
     window.addEventListener('pointerup', (e) => this.onPointerUp(e));
+  }
 
-    // Double click to finish line or auto-close loop
-    this.canvas.addEventListener('dblclick', () => {
-      if (this.activeMode === 'draw') {
-        this.bandManager.finishActiveLine();
+  executeUndo() {
+    if (this.actionHistory.length > 0) {
+      const lastAction = this.actionHistory.pop();
+      if (lastAction.type === 'ruler') {
+        this.rulerTool.undo();
+      } else if (lastAction.type === 'protractor') {
+        this.protractorTool.undo();
+      } else if (lastAction.type === 'pen') {
+        this.penTool.undo();
+      } else if (lastAction.type === 'band') {
+        this.bandManager.undo();
       }
-    });
+      return;
+    }
+
+    // Fallback if actionHistory is empty
+    if (this.rulerTool.undo()) return;
+    if (this.penTool.undo()) return;
+    if (this.protractorTool.undo()) return;
+    this.bandManager.undo();
   }
 
   getCanvasCoords(e) {
@@ -236,7 +258,11 @@ class App {
     if (this.activeMode === 'draw') {
       if (nearestPeg) {
         this.dragStartPeg = nearestPeg;
+        const initialShapes = this.bandManager.shapes.length;
         this.bandManager.handlePegClick(nearestPeg, false);
+        if (this.bandManager.shapes.length > initialShapes) {
+          this.actionHistory.push({ type: 'band' });
+        }
       }
     } else if (this.activeMode === 'circle') {
       if (nearestPeg) {
@@ -245,30 +271,27 @@ class App {
         } else {
           const center = this.bandManager.activePoints[0];
           this.bandManager.finishCircle(center, nearestPeg);
+          this.actionHistory.push({ type: 'band' });
         }
       }
-    } else if (this.activeMode === 'select') {
-      // Check if clicking existing shape vertex to drag
-      const selectedShape = this.bandManager.getSelectedShape();
-      if (selectedShape) {
-        for (let i = 0; i < selectedShape.pegs.length; i++) {
-          const peg = selectedShape.pegs[i];
-          if (Math.hypot(peg.x - pos.x, peg.y - pos.y) < 20) {
-            this.bandManager.startDraggingVertex(selectedShape.id, i);
-            return;
-          }
-        }
-      }
-
-      // Select shape
-      this.bandManager.selectShapeAt(pos.x, pos.y);
+    } else if (this.activeMode === 'pen') {
+      this.isDrawingPen = true;
+      this.penTool.startStroke(pos.x, pos.y, this.bandManager.selectedColor.stroke, 3);
     } else if (this.activeMode === 'protractor') {
       if (nearestPeg) {
+        const prevCount = this.protractorTool.measuredAngles.length;
         this.protractorTool.handlePegClick(nearestPeg);
+        if (this.protractorTool.measuredAngles.length > prevCount) {
+          this.actionHistory.push({ type: 'protractor' });
+        }
       }
     } else if (this.activeMode === 'ruler') {
       if (nearestPeg) {
+        const prevCount = this.rulerTool.savedMeasurements.length;
         this.rulerTool.handlePegClick(nearestPeg);
+        if (this.rulerTool.savedMeasurements.length > prevCount) {
+          this.actionHistory.push({ type: 'ruler' });
+        }
       }
     }
   }
@@ -281,16 +304,15 @@ class App {
     if (this.protractorTool.handleMouseMove(pos.x, pos.y)) return;
     if (this.rulerTool.handleMouseMove(pos.x, pos.y)) return;
 
+    // Pen tool drawing
+    if (this.activeMode === 'pen' && this.isDrawingPen) {
+      this.penTool.addPoint(pos.x, pos.y);
+      return;
+    }
+
     // Live elastic preview in draw / circle mode
     if (this.activeMode === 'draw' || this.activeMode === 'circle') {
       this.bandManager.activeMousePos = pos;
-    }
-
-    // Dragging vertex in select mode
-    if (this.activeMode === 'select' && this.bandManager.draggingVertexInfo) {
-      if (this.hoveredPeg) {
-        this.bandManager.updateDraggedVertex(this.hoveredPeg);
-      }
     }
   }
 
@@ -298,20 +320,27 @@ class App {
     const pos = this.getCanvasCoords(e);
     const upPeg = this.engine.getNearestPeg(pos.x, pos.y);
 
-    // AUTOMATIC RUBBER BAND LINE CREATION ON PEG RELEASE:
-    // If user dragged from dragStartPeg and released on upPeg -> automatically complete line!
+    if (this.activeMode === 'pen' && this.isDrawingPen) {
+      this.isDrawingPen = false;
+      if (this.penTool.endStroke()) {
+        this.actionHistory.push({ type: 'pen' });
+      }
+    }
+
+    // AUTOMATIC RUBBER BAND LINE CREATION ON PEG RELEASE
     if (this.activeMode === 'draw' && this.dragStartPeg && upPeg) {
       if (upPeg.id !== this.dragStartPeg.id) {
+        const initialShapes = this.bandManager.shapes.length;
         this.bandManager.handlePegClick(upPeg, true);
+        if (this.bandManager.shapes.length > initialShapes) {
+          this.actionHistory.push({ type: 'band' });
+        }
       }
     }
 
     this.dragStartPeg = null;
     this.protractorTool.handleMouseUp();
     this.rulerTool.handleMouseUp();
-    if (this.bandManager.draggingVertexInfo) {
-      this.bandManager.stopDraggingVertex();
-    }
   }
 
   loadPreset(presetId) {
@@ -361,7 +390,7 @@ class App {
     ctx.drawImage(this.canvas, 0, 0);
 
     const link = document.createElement('a');
-    link.download = `geoboard_${Date.now()}.png`;
+    link.download = `virtual_geoboard_${Date.now()}.png`;
     link.href = tempCanvas.toDataURL('image/png');
     link.click();
   }
@@ -372,16 +401,19 @@ class App {
       const activePeg = this.bandManager.activePoints[this.bandManager.activePoints.length - 1] || null;
       this.engine.renderGrid(activePeg, this.hoveredPeg);
 
-      // 2. Render rubber band polygons, lines, circles & active elastic preview
+      // 2. Render freehand Pen tool strokes
+      this.penTool.render(this.engine.ctx);
+
+      // 3. Render rubber band polygons, lines, circles & active elastic preview
       this.bandManager.renderBands(this.engine.ctx);
       if (this.bandManager.activePoints.length > 0) {
         this.bandManager.renderActiveBandPreview(this.engine.ctx, this.activeMode === 'circle');
       }
 
-      // 3. Render protractor angle arcs & virtual protractor tool
+      // 4. Render protractor angle arcs & virtual protractor tool
       this.protractorTool.render(this.engine.ctx);
 
-      // 4. Render ruler measurements & virtual ruler tool
+      // 5. Render ruler measurements & virtual ruler tool
       this.rulerTool.render(this.engine.ctx);
 
       requestAnimationFrame(loop);
