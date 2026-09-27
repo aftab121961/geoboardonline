@@ -1,6 +1,6 @@
 /**
  * geoboardEngine.js - Interactive Peg Grid Rendering Engine & Magnet Snapping
- * Supports 5x5, 10x10, Dense Isometric, and Circular Grids in Dark & Light Themes
+ * Supports 5x5, 10x10, Dense Isometric (16x20), and Circular Grids in Dark & Light Themes
  */
 
 export class GeoboardEngine {
@@ -12,8 +12,8 @@ export class GeoboardEngine {
     this.showGridLines = options.showGridLines !== undefined ? options.showGridLines : true;
 
     this.pegs = [];
-    this.padding = 45;
-    this.snapRadius = 30; // Pixel radius for magnet snap
+    this.padding = 40;
+    this.snapRadius = 30; // Default pixel radius for magnet snap
 
     // Responsive setup
     this.resizeCanvas();
@@ -93,9 +93,9 @@ export class GeoboardEngine {
         }
       }
     } else if (this.gridType === 'isometric') {
-      // Dense Triangular / Isometric grid layout (11 rows, 13 cols)
-      const rows = 11;
-      const cols = 13;
+      // High-Density Triangular / Isometric grid layout (16 rows, 20 cols)
+      const rows = 16;
+      const cols = 20;
       const stepY = usableH / (rows - 1);
       const stepX = stepY * (2 / Math.sqrt(3)); // Equilateral spacing
 
@@ -167,9 +167,12 @@ export class GeoboardEngine {
   /**
    * Find nearest peg to pixel coordinates (x, y)
    */
-  getNearestPeg(px, py, maxDist = this.snapRadius) {
+  getNearestPeg(px, py, maxDist) {
+    const effectiveMaxDist = maxDist !== undefined ? maxDist : (
+      this.gridType === 'isometric' ? 22 : (this.gridType === 'square10' ? 24 : this.snapRadius)
+    );
     let closest = null;
-    let minDist = maxDist;
+    let minDist = effectiveMaxDist;
 
     for (let i = 0; i < this.pegs.length; i++) {
       const peg = this.pegs[i];
@@ -242,7 +245,7 @@ export class GeoboardEngine {
           }
         }
       } else if (this.gridType === 'isometric') {
-        const rows = 11;
+        const rows = 16;
         const stepY = (this.height - 2 * this.padding) / (rows - 1);
         const targetDist = stepY * (2 / Math.sqrt(3));
         for (let i = 0; i < this.pegs.length; i++) {
@@ -250,7 +253,7 @@ export class GeoboardEngine {
           for (let j = i + 1; j < this.pegs.length; j++) {
             const p2 = this.pegs[j];
             const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-            if (Math.abs(dist - targetDist) < 6) {
+            if (Math.abs(dist - targetDist) < 8) {
               ctx.moveTo(p1.x, p1.y);
               ctx.lineTo(p2.x, p2.y);
             }
@@ -292,7 +295,7 @@ export class GeoboardEngine {
    */
   drawPeg(peg, isActive = false, isHovered = false, isLight = false) {
     const ctx = this.ctx;
-    const baseRadius = (this.gridType === 'square10' || this.gridType === 'isometric') ? 5 : 7.5;
+    const baseRadius = this.gridType === 'isometric' ? 4 : (this.gridType === 'square10' ? 5 : 7.5);
     const r = isHovered ? baseRadius + 2.5 : (isActive ? baseRadius + 3.5 : baseRadius);
 
     // Outer glow for hover/active
@@ -349,4 +352,5 @@ export class GeoboardEngine {
     }
   }
 }
+
 
