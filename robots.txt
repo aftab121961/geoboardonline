@@ -1,0 +1,6 @@
+# Robots.txt for GeoBoard Online
+User-agent: *
+Allow: /
+
+# Sitemap Location
+Sitemap: https://geoboardonline.vercel.app/sitemap.xml

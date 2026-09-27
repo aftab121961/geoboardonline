@@ -1,19 +1,19 @@
 /**
  * geoboardEngine.js - Interactive Peg Grid Rendering Engine & Magnet Snapping
- * Supports 5x5, 10x10, 15x8, Isometric, and Circular Grids in Dark & Light Themes
+ * Supports 5x5, 10x10, Dense Isometric (16x20), and Circular Grids in Dark & Light Themes
  */
 
 export class GeoboardEngine {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.gridType = options.gridType || 'square5'; // 'square5', 'square10', 'grid15x8', 'isometric', 'circular'
+    this.gridType = options.gridType || 'square5'; // 'square5', 'square10', 'isometric', 'circular'
     this.theme = options.theme || 'dark'; // 'dark' | 'light'
     this.showGridLines = options.showGridLines !== undefined ? options.showGridLines : true;
 
     this.pegs = [];
-    this.padding = 45;
-    this.snapRadius = 35; // Pixel radius for magnet snap
+    this.padding = 40;
+    this.snapRadius = 30; // Default pixel radius for magnet snap
 
     // Responsive setup
     this.resizeCanvas();
@@ -68,13 +68,9 @@ export class GeoboardEngine {
     const usableW = width - 2 * pad;
     const usableH = height - 2 * pad;
 
-    if (this.gridType === 'square5' || this.gridType === 'square10' || this.gridType === 'grid15x8') {
-      let cols = 5, rows = 5;
-      if (this.gridType === 'square10') {
-        cols = 10; rows = 10;
-      } else if (this.gridType === 'grid15x8') {
-        cols = 15; rows = 8;
-      }
+    if (this.gridType === 'square5' || this.gridType === 'square10') {
+      const cols = this.gridType === 'square10' ? 10 : 5;
+      const rows = cols;
 
       const stepX = usableW / (cols - 1);
       const stepY = usableH / (rows - 1);
@@ -97,9 +93,9 @@ export class GeoboardEngine {
         }
       }
     } else if (this.gridType === 'isometric') {
-      // Triangular / Isometric grid layout
-      const rows = 7;
-      const cols = 9;
+      // High-Density Triangular / Isometric grid layout (16 rows, 20 cols)
+      const rows = 16;
+      const cols = 20;
       const stepY = usableH / (rows - 1);
       const stepX = stepY * (2 / Math.sqrt(3)); // Equilateral spacing
 
@@ -171,9 +167,12 @@ export class GeoboardEngine {
   /**
    * Find nearest peg to pixel coordinates (x, y)
    */
-  getNearestPeg(px, py, maxDist = this.snapRadius) {
+  getNearestPeg(px, py, maxDist) {
+    const effectiveMaxDist = maxDist !== undefined ? maxDist : (
+      this.gridType === 'isometric' ? 22 : (this.gridType === 'square10' ? 24 : this.snapRadius)
+    );
     let closest = null;
-    let minDist = maxDist;
+    let minDist = effectiveMaxDist;
 
     for (let i = 0; i < this.pegs.length; i++) {
       const peg = this.pegs[i];
@@ -223,7 +222,7 @@ export class GeoboardEngine {
       ctx.strokeStyle = isLight ? 'rgba(100, 116, 139, 0.25)' : 'rgba(148, 163, 184, 0.18)';
       ctx.lineWidth = 1.5;
 
-      if (this.gridType === 'square5' || this.gridType === 'square10' || this.gridType === 'grid15x8') {
+      if (this.gridType === 'square5' || this.gridType === 'square10') {
         const cols = this.gridCols;
         const rows = this.gridRows;
 
@@ -246,13 +245,15 @@ export class GeoboardEngine {
           }
         }
       } else if (this.gridType === 'isometric') {
+        const rows = 16;
+        const stepY = (this.height - 2 * this.padding) / (rows - 1);
+        const targetDist = stepY * (2 / Math.sqrt(3));
         for (let i = 0; i < this.pegs.length; i++) {
           const p1 = this.pegs[i];
           for (let j = i + 1; j < this.pegs.length; j++) {
             const p2 = this.pegs[j];
             const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-            const targetDist = (this.height - 2 * this.padding) / 6;
-            if (Math.abs(dist - targetDist) < 15 || Math.abs(dist - targetDist * (2 / Math.sqrt(3))) < 15) {
+            if (Math.abs(dist - targetDist) < 8) {
               ctx.moveTo(p1.x, p1.y);
               ctx.lineTo(p2.x, p2.y);
             }
@@ -294,13 +295,13 @@ export class GeoboardEngine {
    */
   drawPeg(peg, isActive = false, isHovered = false, isLight = false) {
     const ctx = this.ctx;
-    const baseRadius = this.gridType === 'grid15x8' ? 6 : (this.gridType === 'square10' ? 6 : 8);
-    const r = isHovered ? baseRadius + 3 : (isActive ? baseRadius + 4 : baseRadius);
+    const baseRadius = this.gridType === 'isometric' ? 4 : (this.gridType === 'square10' ? 5 : 7.5);
+    const r = isHovered ? baseRadius + 2.5 : (isActive ? baseRadius + 3.5 : baseRadius);
 
     // Outer glow for hover/active
     if (isHovered || isActive) {
       ctx.beginPath();
-      ctx.arc(peg.x, peg.y, r + 6, 0, Math.PI * 2);
+      ctx.arc(peg.x, peg.y, r + 5, 0, Math.PI * 2);
       ctx.fillStyle = isActive ? 'rgba(59, 130, 246, 0.4)' : 'rgba(236, 72, 153, 0.3)';
       ctx.fill();
     }
@@ -343,11 +344,13 @@ export class GeoboardEngine {
     ctx.stroke();
 
     // Pin center dot
-    if (r >= 4) {
+    if (r >= 3.5) {
       ctx.beginPath();
-      ctx.arc(peg.x, peg.y, Math.max(1.5, r * 0.25), 0, Math.PI * 2);
+      ctx.arc(peg.x, peg.y, Math.max(1.2, r * 0.25), 0, Math.PI * 2);
       ctx.fillStyle = '#0f172a';
       ctx.fill();
     }
   }
 }
+
+

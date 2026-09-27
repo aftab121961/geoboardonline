@@ -1,6 +1,6 @@
 /**
  * app.js - Main Controller for Virtual Geoboard
- * Supports 15x8 grid, freehand Pen tool, floating bottom color palette,
+ * Supports dense isometric grid, freehand Pen tool, floating bottom color palette,
  * leftmost toolbox, white theme toggle, and unified undo history.
  */
 
@@ -170,7 +170,7 @@ class App {
       }
     });
 
-    // Grid Switcher (includes 15x8)
+    // Grid Switcher
     const gridTypeSelect = document.getElementById('gridTypeSelect');
     gridTypeSelect?.addEventListener('change', (e) => {
       const newGrid = e.target.value;
