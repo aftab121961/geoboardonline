@@ -7,7 +7,7 @@ export class GeoboardEngine {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.gridType = options.gridType || 'square5'; // 'square5', 'square15', 'isometric', 'circular'
+    this.gridType = options.gridType || 'square15'; // 'square5', 'square15', 'isometric', 'circular'
     this.theme = options.theme || 'dark'; // 'dark' | 'light'
     this.showGridLines = options.showGridLines !== undefined ? options.showGridLines : true;
 

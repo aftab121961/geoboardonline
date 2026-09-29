@@ -13,7 +13,7 @@ import { PenTool } from './penTool.js';
 class App {
   constructor() {
     this.canvas = document.getElementById('geoboardCanvas');
-    this.engine = new GeoboardEngine(this.canvas, { gridType: 'square5', theme: 'dark', showGridLines: true });
+    this.engine = new GeoboardEngine(this.canvas, { gridType: 'square15', theme: 'dark', showGridLines: true });
     this.bandManager = new BandManager(this.engine);
     this.protractorTool = new ProtractorTool(this.engine);
     this.rulerTool = new RulerTool(this.engine);
