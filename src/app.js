@@ -9,7 +9,6 @@ import { BandManager, BAND_COLORS } from './bandManager.js';
 import { ProtractorTool } from './protractorTool.js';
 import { RulerTool } from './rulerTool.js';
 import { PenTool } from './penTool.js';
-import { PRESETS } from './presets.js';
 
 class App {
   constructor() {
@@ -31,9 +30,6 @@ class App {
     this.initUI();
     this.bindEvents();
     this.startRenderLoop();
-
-    // Load initial unit square preset
-    this.loadPreset('unit_square');
   }
 
   initUI() {
@@ -53,24 +49,6 @@ class App {
           this.bandManager.setColor(c.id);
         });
         paletteContainer.appendChild(btn);
-      });
-    }
-
-    // Populate Presets Select
-    const presetSelect = document.getElementById('presetSelect');
-    if (presetSelect) {
-      presetSelect.innerHTML = '<option value="">-- Load Shape Preset --</option>';
-      PRESETS.forEach(p => {
-        const opt = document.createElement('option');
-        opt.value = p.id;
-        opt.textContent = `${p.name} (${p.gridType === 'isometric' ? 'Iso' : 'Square'})`;
-        presetSelect.appendChild(opt);
-      });
-      presetSelect.addEventListener('change', (e) => {
-        if (e.target.value) {
-          this.loadPreset(e.target.value);
-          e.target.value = '';
-        }
       });
     }
   }
@@ -341,43 +319,6 @@ class App {
     this.dragStartPeg = null;
     this.protractorTool.handleMouseUp();
     this.rulerTool.handleMouseUp();
-  }
-
-  loadPreset(presetId) {
-    const preset = PRESETS.find(p => p.id === presetId);
-    if (!preset) return;
-
-    // Set grid type
-    this.engine.setGridType(preset.gridType);
-    const gridTypeSelect = document.getElementById('gridTypeSelect');
-    if (gridTypeSelect) gridTypeSelect.value = preset.gridType;
-
-    // Clear board & load preset pegs
-    this.bandManager.clearBoard();
-    this.bandManager.setColor(preset.colorId || 'red');
-
-    if (preset.isCircle) {
-      const center = this.engine.pegs.find(peg => Math.abs(peg.gridX - preset.pegs[0].gridX) < 0.1 && Math.abs(peg.gridY - preset.pegs[0].gridY) < 0.1);
-      const radPeg = this.engine.pegs.find(peg => Math.abs(peg.gridX - preset.pegs[1].gridX) < 0.1 && Math.abs(peg.gridY - preset.pegs[1].gridY) < 0.1);
-      if (center && radPeg) {
-        this.bandManager.finishCircle(center, radPeg);
-      }
-    } else {
-      preset.pegs.forEach(p => {
-        const nearest = this.engine.pegs.find(peg =>
-          Math.abs(peg.gridX - p.gridX) < 0.1 && Math.abs(peg.gridY - p.gridY) < 0.1
-        );
-        if (nearest) {
-          this.bandManager.handlePegClick(nearest, false);
-        }
-      });
-
-      if (preset.isLine && this.bandManager.activePoints.length >= 2) {
-        this.bandManager.finishActiveLine();
-      } else if (this.bandManager.activePoints.length >= 3) {
-        this.bandManager.closeActiveLoop();
-      }
-    }
   }
 
   exportImage() {

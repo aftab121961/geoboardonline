@@ -7,7 +7,7 @@ export class GeoboardEngine {
   constructor(canvas, options = {}) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
-    this.gridType = options.gridType || 'square5'; // 'square5', 'square10', 'isometric', 'circular'
+    this.gridType = options.gridType || 'square5'; // 'square5', 'square15', 'isometric', 'circular'
     this.theme = options.theme || 'dark'; // 'dark' | 'light'
     this.showGridLines = options.showGridLines !== undefined ? options.showGridLines : true;
 
@@ -68,8 +68,8 @@ export class GeoboardEngine {
     const usableW = width - 2 * pad;
     const usableH = height - 2 * pad;
 
-    if (this.gridType === 'square5' || this.gridType === 'square10') {
-      const cols = this.gridType === 'square10' ? 10 : 5;
+    if (this.gridType === 'square5' || this.gridType === 'square15') {
+      const cols = this.gridType === 'square15' ? 15 : 5;
       const rows = cols;
 
       const stepX = usableW / (cols - 1);
@@ -93,16 +93,16 @@ export class GeoboardEngine {
         }
       }
     } else if (this.gridType === 'isometric') {
-      // High-Density Triangular / Isometric grid layout (16 rows, 20 cols)
+      // 3D Isometric Grid: 1 unit vertical peg distance, 2 unit horizontal peg distance
       const rows = 16;
-      const cols = 20;
-      const stepY = usableH / (rows - 1);
-      const stepX = stepY * (2 / Math.sqrt(3)); // Equilateral spacing
+      const stepY = usableH / (rows - 1); // 1 vertical unit spacing
+      const stepX = 2 * stepY; // 2 horizontal units spacing
 
+      const cols = Math.floor(usableW / stepX) + 1;
       const startX = (width - (cols - 1) * stepX) / 2;
 
       for (let r = 0; r < rows; r++) {
-        const offset = (r % 2 === 1) ? stepX / 2 : 0;
+        const offset = (r % 2 === 1) ? stepY : 0; // 1 unit offset on alternating rows
         const colsInRow = (r % 2 === 1) ? cols - 1 : cols;
         for (let c = 0; c < colsInRow; c++) {
           const px = startX + offset + c * stepX;
@@ -169,7 +169,7 @@ export class GeoboardEngine {
    */
   getNearestPeg(px, py, maxDist) {
     const effectiveMaxDist = maxDist !== undefined ? maxDist : (
-      this.gridType === 'isometric' ? 22 : (this.gridType === 'square10' ? 24 : this.snapRadius)
+      this.gridType === 'isometric' ? 22 : (this.gridType === 'square15' ? 18 : this.snapRadius)
     );
     let closest = null;
     let minDist = effectiveMaxDist;
@@ -222,7 +222,7 @@ export class GeoboardEngine {
       ctx.strokeStyle = isLight ? 'rgba(100, 116, 139, 0.25)' : 'rgba(148, 163, 184, 0.18)';
       ctx.lineWidth = 1.5;
 
-      if (this.gridType === 'square5' || this.gridType === 'square10') {
+      if (this.gridType === 'square5' || this.gridType === 'square15') {
         const cols = this.gridCols;
         const rows = this.gridRows;
 
@@ -247,13 +247,14 @@ export class GeoboardEngine {
       } else if (this.gridType === 'isometric') {
         const rows = 16;
         const stepY = (this.height - 2 * this.padding) / (rows - 1);
-        const targetDist = stepY * (2 / Math.sqrt(3));
+        const targetDiagDist = Math.SQRT2 * stepY;
+        const targetDirectDist = 2 * stepY;
         for (let i = 0; i < this.pegs.length; i++) {
           const p1 = this.pegs[i];
           for (let j = i + 1; j < this.pegs.length; j++) {
             const p2 = this.pegs[j];
             const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-            if (Math.abs(dist - targetDist) < 8) {
+            if (Math.abs(dist - targetDiagDist) < 4 || Math.abs(dist - targetDirectDist) < 4) {
               ctx.moveTo(p1.x, p1.y);
               ctx.lineTo(p2.x, p2.y);
             }
@@ -295,7 +296,7 @@ export class GeoboardEngine {
    */
   drawPeg(peg, isActive = false, isHovered = false, isLight = false) {
     const ctx = this.ctx;
-    const baseRadius = this.gridType === 'isometric' ? 4 : (this.gridType === 'square10' ? 5 : 7.5);
+    const baseRadius = this.gridType === 'isometric' ? 4 : (this.gridType === 'square15' ? 4.5 : 7.5);
     const r = isHovered ? baseRadius + 2.5 : (isActive ? baseRadius + 3.5 : baseRadius);
 
     // Outer glow for hover/active

@@ -95,34 +95,51 @@ html.light .glass-card {
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.4) !important;
 }
 
-/* Tooltip on Icon Buttons */
-[data-tooltip] {
-  position: relative;
-}
+/* Tooltip on Icon Buttons - Only show on desktop mouse hover */
+@media (hover: hover) and (pointer: fine) {
+  [data-tooltip] {
+    position: relative;
+  }
 
-[data-tooltip]::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  left: 115%;
-  top: 50%;
-  transform: translateY(-50%) scale(0.95);
-  background: var(--tooltip-bg);
-  color: #ffffff;
-  padding: 4px 10px;
-  border-radius: 6px;
-  font-size: 11px;
-  font-weight: 600;
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transition: all 0.15s ease-in-out;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
-  z-index: 50;
-}
+  [data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 115%;
+    top: 50%;
+    transform: translateY(-50%) scale(0.95);
+    background: var(--tooltip-bg);
+    color: #ffffff;
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0;
+    transition: all 0.15s ease-in-out;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    z-index: 50;
+  }
 
-[data-tooltip]:hover::after {
-  opacity: 1;
-  transform: translateY(-50%) scale(1);
+  /* Below tooltip for horizontal mobile/tablet toolbar view */
+  @media (max-width: 767px) {
+    [data-tooltip]::after {
+      left: 50%;
+      top: 125%;
+      transform: translateX(-50%) scale(0.95);
+    }
+  }
+
+  [data-tooltip]:hover::after {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+
+  @media (max-width: 767px) {
+    [data-tooltip]:hover::after {
+      transform: translateX(-50%) scale(1);
+    }
+  }
 }
 
 /* Canvas Container & Responsiveness */
